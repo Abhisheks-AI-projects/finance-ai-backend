@@ -37,6 +37,21 @@ class ThreadRepository:
             return []
         return thread.get("messages", [])
 
+    def get_message_count(self, thread_id: str, user_id: str) -> int:
+        thread = self.thread_collection.find_one(
+            {"thread_id": thread_id, "user_id": user_id, "is_deleted": False},
+            {"_id": 0, "messages": 1},
+        )
+        if not thread:
+            return 0
+        return len(thread.get("messages", []))
+
+    def update_title(self, thread_id: str, user_id: str, title: str) -> None:
+        self.thread_collection.update_one(
+            {"thread_id": thread_id, "user_id": user_id},
+            {"$set": {"title": title, "updated_at": datetime.now(timezone.utc)}},
+        )
+
     def list_threads(self, user_id: str) -> list[dict]:
         cursor = self.thread_collection.find(
             {"user_id": user_id, "is_deleted": False},

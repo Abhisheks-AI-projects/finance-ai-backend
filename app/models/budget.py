@@ -1,11 +1,10 @@
 import uuid
 from datetime import date
 
-from sqlalchemy import Date, ForeignKey, Numeric
+from sqlalchemy import Boolean, Date, ForeignKey, Numeric
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.postgres import Base
-from sqlalchemy import ForeignKey
 
 class Budget(Base):
     __tablename__ = "budgets"
@@ -32,5 +31,11 @@ class Budget(Base):
 
     end_date: Mapped[date] = mapped_column(
         Date,
+        nullable=False
+    )
+
+    is_active: Mapped[bool] = mapped_column(
+        Boolean,
+        default=True,
         nullable=False
     )

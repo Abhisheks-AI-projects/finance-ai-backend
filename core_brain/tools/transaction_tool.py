@@ -31,6 +31,19 @@ class GetTransactionsInput(BaseModel):
     transaction_type: str | None = Field(default=None, description="Filter by 'income' or 'expense'")
 
 
+class CreateBudgetInput(BaseModel):
+    amount: float = Field(description="Budget amount, must be greater than 0")
+    start_date: str = Field(description="Budget start date in YYYY-MM-DD format")
+    end_date: str = Field(description="Budget end date in YYYY-MM-DD format")
+
+
+class UpdateBudgetInput(BaseModel):
+    amount: float | None = Field(default=None, description="New total budget amount")
+    add_amount: float | None = Field(default=None, description="Amount to add to existing budget")
+    start_date: str | None = Field(default=None, description="New start date in YYYY-MM-DD format")
+    end_date: str | None = Field(default=None, description="New end date in YYYY-MM-DD format")
+
+
 def make_transaction_tools(user_id: str):
 
     @tool(args_schema=CreateTransactionInput)
@@ -159,4 +172,100 @@ def make_transaction_tools(user_id: str):
         finally:
             db.close()
 
-    return [create_transaction, update_transaction, get_transactions]
+    @tool(args_schema=CreateBudgetInput)
+    def create_budget(
+        amount: float,
+        start_date: str,
+        end_date: str,
+    ) -> str:
+        """Create a new budget for a date range. Any existing active budget will be deactivated."""
+        if amount <= 0:
+            return "Error: amount must be greater than 0"
+
+        start = date.fromisoformat(start_date)
+        end = date.fromisoformat(end_date)
+
+        if end <= start:
+            return "Error: end_date must be after start_date"
+
+        db = SessionLocal()
+        try:
+            repo = FinanceRepository(db)
+            budget = repo.create_budget(
+                user_id=user_id,
+                amount=amount,
+                start_date=start,
+                end_date=end,
+            )
+
+            return (
+                f"Budget created successfully! "
+                f"ID: {budget.id}, "
+                f"Amount: {budget.amount}, "
+                f"Period: {start_date} to {end_date}"
+            )
+        except Exception as e:
+            db.rollback()
+            return f"Error creating budget: {str(e)}"
+        finally:
+            db.close()
+
+    @tool(args_schema=UpdateBudgetInput)
+    def update_budget(
+        amount: float | None = None,
+        add_amount: float | None = None,
+        start_date: str | None = None,
+        end_date: str | None = None,
+    ) -> str:
+        """Update the user's active budget. Use add_amount to add more money to the existing budget, or amount to set a new total."""
+        db = SessionLocal()
+        try:
+            repo = FinanceRepository(db)
+            budget = repo.get_active_budget(user_id)
+            if not budget:
+                return "Error: no active budget found. Create one first."
+
+            updates = {}
+            if add_amount is not None:
+                updates["amount"] = float(budget.amount) + add_amount
+            if amount is not None:
+                updates["amount"] = amount
+            if start_date is not None:
+                updates["start_date"] = date.fromisoformat(start_date)
+            if end_date is not None:
+                updates["end_date"] = date.fromisoformat(end_date)
+
+            updated = repo.update_budget(budget, **updates)
+
+            return (
+                f"Budget updated successfully! "
+                f"Amount: {updated.amount}, "
+                f"Period: {updated.start_date} to {updated.end_date}"
+            )
+        except Exception as e:
+            db.rollback()
+            return f"Error updating budget: {str(e)}"
+        finally:
+            db.close()
+
+    @tool
+    def get_budget() -> str:
+        """Get the user's current active budget."""
+        db = SessionLocal()
+        try:
+            repo = FinanceRepository(db)
+            budget = repo.get_active_budget(user_id)
+            if not budget:
+                return "No active budget set."
+
+            return (
+                f"ID: {budget.id}, "
+                f"Amount: {budget.amount}, "
+                f"Period: {budget.start_date} to {budget.end_date}"
+            )
+        except Exception as e:
+            return f"Error fetching budget: {str(e)}"
+        finally:
+            db.close()
+
+    return [create_transaction, update_transaction, get_transactions, create_budget, update_budget, get_budget]

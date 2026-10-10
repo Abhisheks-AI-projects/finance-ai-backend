@@ -6,7 +6,7 @@ from app.core.events import EVENT_TYPES
 from core_brain.db.mongo import get_mongo_db
 from app.schemas.auth import AuthUser
 from app.schemas.thread import (
-    MessageRequest, MessageResponse,
+    MessageRequest,
     ThreadCreatedResponse,
     ThreadDataResponse,
     ThreadListResponse,
@@ -29,19 +29,22 @@ async def create_thread(user: AuthUser = Depends(get_auth_user), mongo_db=Depend
     )
 
 
-@router.post("/send-message", response_model=MessageResponse)
+@router.post("/send-message")
 async def send_message(
     message_request: MessageRequest,
     user: AuthUser = Depends(get_auth_user),
     mongo_db=Depends(get_mongo_db),
 ):
     thread_service = ThreadService(mongo_db)
-    message = thread_service.add_message(message_request.thread_id, user.id, message_request.message, message_request.message_type)
 
-    return MessageResponse(
-        event_type=EVENT_TYPES.MESSAGE_ADDED,
-        thread_id=message_request.thread_id,
-        message=message,
+    return StreamingResponse(
+        thread_service.send_message_stream(
+            message_request.thread_id,
+            user.id,
+            message_request.message,
+            message_request.message_type,
+        ),
+        media_type="text/event-stream",
     )
 
 

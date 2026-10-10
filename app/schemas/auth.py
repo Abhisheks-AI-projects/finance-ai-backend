@@ -15,5 +15,5 @@ class AuthUser(BaseModel):
 
 class MetaDataResponse(BaseModel):
     user_id: str
-    email: str
+    email: str | None = None
     name: str | None = None

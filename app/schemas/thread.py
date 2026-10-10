@@ -51,6 +51,12 @@ class MessageResponse(BaseModel):
     message: Message
 
 
+class ThreadTitleResponse(BaseModel):
+    event_type: str
+    thread_id: str
+    title: str
+
+
 class TriggerAIRequest(BaseModel):
     message_id: str
     thread_id: str

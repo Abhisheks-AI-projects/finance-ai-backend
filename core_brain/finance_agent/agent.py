@@ -3,7 +3,7 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from app.core.config import settings
 from langchain.agents import create_agent
 
-from core_brain.prompts.finance_prompt import FINANCE_SYSTEM_PROMPT
+from core_brain.prompts.finance_prompt import FINANCE_SYSTEM_PROMPT, TITLE_GENERATION_PROMPT
 from core_brain.tools.transaction_tool import make_transaction_tools
 
 model = init_chat_model(
@@ -24,3 +24,12 @@ async def chat_with_finance_agent(messages: list, user_id: str):
             content = event["data"]["chunk"].content
             if content:
                 yield content
+
+async def generate_thread_title_agent(user_message: str) -> str:
+    prompt = [
+        SystemMessage(content=TITLE_GENERATION_PROMPT),
+        HumanMessage(content=user_message),
+    ]
+    response = await model.ainvoke(prompt)
+    return response.content.strip().strip('"\'')
+

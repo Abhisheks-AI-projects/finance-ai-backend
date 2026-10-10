@@ -8,8 +8,9 @@ from pymongo.errors import PyMongoError
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
 from core_brain.prompts.finance_prompt import FINANCE_SYSTEM_PROMPT
 from core_brain.repositories.thread_repository import ThreadRepository
-from core_brain.finance_agent.agent import chat_with_finance_agent
-from app.schemas.thread import Thread, Message, MessageType
+from core_brain.finance_agent.agent import chat_with_finance_agent, generate_thread_title_agent
+from app.schemas.thread import Thread, Message, MessageType, MessageResponse, ThreadTitleResponse
+from app.core.events import EVENT_TYPES
 
 
 class ThreadService:
@@ -55,6 +56,26 @@ class ThreadService:
             raise HTTPException(status_code=404, detail="Thread not found")
 
         return message
+
+    async def send_message_stream(self, thread_id: str, user_id: str, content: str, message_type: MessageType):
+        import json
+
+        # check message count before adding the new message
+        is_first_message = self.thread_repository.get_message_count(thread_id, user_id) == 0
+
+        # add the message
+        message = self.add_message(thread_id, user_id, content, message_type)
+
+        # yield message_added event
+        response = MessageResponse(event_type=EVENT_TYPES.MESSAGE_ADDED, thread_id=thread_id, message=message)
+        yield f"data: {response.model_dump_json()}\n\n"
+
+        # if first message, generate title async and yield thread_title_generated event
+        if is_first_message:
+            title = await generate_thread_title_agent(content)
+            self.thread_repository.update_title(thread_id, user_id, title)
+            title_response = ThreadTitleResponse(event_type=EVENT_TYPES.THREAD_TITLE_GENERATED, thread_id=thread_id, title=title)
+            yield f"data: {title_response.model_dump_json()}\n\n"
 
     def get_thread(self, thread_id: str, user_id: str) -> dict:
         thread = self.thread_repository.get_thread(thread_id, user_id)
